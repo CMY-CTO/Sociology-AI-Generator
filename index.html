@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sociology-AI-Generator</title>
+  <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.2.47/vue.global.min.js"></script>
+  <link href="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.14/index.min.css" rel="stylesheet">
+  <script src="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.14/index.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <style>
+    body {
+      font-family: "Microsoft YaHei", sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f7fa;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    }
+    .upload-area {
+      margin-bottom: 15px;
+      padding: 15px;
+      border: 1px dashed #dcdfe6;
+      border-radius: 4px;
+      background-color: #f5f7fa;
+    }
+    .result-area {
+      margin-top: 25px;
+    }
+    .generate-btn {
+      margin: 20px 0;
+      text-align: center;
+    }
+    h1 {
+      color: #303133;
+      text-align: center;
+      margin-bottom: 25px;
+      font-size: 24px;
+    }
+    h3 {
+      color: #409eff;
+      margin-top: 0;
+    }
+    .qr-code {
+      text-align: center;
+      margin-top: 20px;
+      padding: 15px;
+      border-top: 1px solid #eee;
+    }
+    .el-upload__tip {
+      font-size: 12px;
+      color: #909399;
+      margin-top: 5px;
+    }
+    .download-btn {
+      display: block;
+      margin: 15px auto 0;
+      width: 200px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="container">
+      <h1>Sociology-AI-Generator</h1>
+      
+      <div class="upload-area">
+        <h3>1. 生成所需模板文件（文件一）</h3>
+        <el-upload
+          v-model:file-list="templateFiles"
+          action="#"
+          :limit="1"
+          :on-change="handleFileChange"
+          :auto-upload="false"
+          accept=".docx,.txt,.pdf">
+          <el-button type="primary">点击上传</el-button>
+          <template #tip>
+            <div class="el-upload__tip">请上传模板文件</div>
+          </template>
+        </el-upload>
+      </div>
+      
+      <div class="upload-area">
+        <h3>2. 参考资料（文件二）</h3>
+        <el-upload
+          v-model:file-list="referenceFiles"
+          action="#"
+          :limit="1"
+          :on-change="handleFileChange"
+          :auto-upload="false"
+          accept=".docx,.txt,.pdf">
+          <el-button type="primary">点击上传</el-button>
+          <template #tip>
+            <div class="el-upload__tip">请上传参考资料文件</div>
+          </template>
+        </el-upload>
+      </div>
+      
+      <div class="upload-area">
+        <h3>3. 访谈记录（文件三）</h3>
+        <el-upload
+          v-model:file-list="interviewFiles"
+          action="#"
+          :limit="1"
+          :on-change="handleFileChange"
+          :auto-upload="false"
+          accept=".docx,.txt,.pdf">
+          <el-button type="primary">点击上传</el-button>
+          <template #tip>
+            <div class="el-upload__tip">请上传访谈记录文件</div>
+          </template>
+        </el-upload>
+      </div>
+
+      <div class="upload-area">
+        <h3>4. 其他参考资料（文件四）</h3>
+        <el-upload
+          v-model:file-list="extraFiles"
+          action="#"
+          :limit="5"
+          :on-change="handleFileChange"
+          :auto-upload="false"
+          accept=".docx,.txt,.pdf,.jpg,.png">
+          <el-button type="primary">点击上传</el-button>
+          <template #tip>
+            <div class="el-upload__tip">可上传补充材料（非必选）</div>
+          </template>
+        </el-upload>
+      </div>
+      
+      <div class="generate-btn">
+        <el-button 
+          type="success" 
+          size="large" 
+          :loading="generating" 
+          @click="generateReport"
+          :disabled="!isReady">
+          生成DOCX文件
+        </el-button>
+      </div>
+      
+      <div class="result-area" v-if="result">
+        <h3>生成结果预览</h3>
+        <el-input
+          v-model="result"
+          type="textarea"
+          :rows="15"
+          placeholder="生成的DOCX文件将显示在这里">
+        </el-input>
+        <el-button 
+          type="primary" 
+          class="download-btn"
+          @click="downloadDocx"
+          :disabled="!result">
+          下载DOCX文件
+        </el-button>
+      </div>
+
+      <div class="qr-code" v-if="pageUrl && !pageUrl.startsWith('file://')">
+        <h4>手机扫码使用</h4>
+        
+        <p style="margin-top: 10px; word-break: break-all;">分享链接：{{ pageUrl }}</p>
+      </div>
+      <div class="qr-code" v-if="pageUrl.startsWith('file://')">
+        <h4>使用提示</h4>
+        <p>请将本文件部署到服务器后生成有效二维码</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted, computed } = Vue;
+    
+    createApp({
+      setup() {
+        // 文件列表
+        const templateFiles = ref([]);
+        const referenceFiles = ref([]);
+        const interviewFiles = ref([]);
+        const extraFiles = ref([]);
+        
+        // 状态控制
+        const generating = ref(false);
+        const result = ref('');
+        const pageUrl = ref('');
+
+        // 自动获取当前页面URL
+        onMounted(() => {
+          pageUrl.value = window.location.href;
+        });
+
+        // 文件处理函数
+        const handleFileChange = (file) => {
+          if (!file || !file.raw) {
+            ElementPlus.ElMessage.warning('文件上传失败，请重新选择');
+            return [];
+          }
+          return [file];
+        };
+
+        // 检查是否可生成
+        const isReady = computed(() => {
+          return templateFiles.value.length > 0 && 
+                 referenceFiles.value.length > 0 && 
+                 interviewFiles.value.length > 0;
+        });
+
+        // 获取文件名（不含扩展名）
+        const getBaseFileName = (filename) => {
+          return filename.replace(/\.[^/.]+$/, "");
+        };
+
+        // 文件内容读取
+        const readFileContent = async (file) => {
+          try {
+            if (!file || !file.raw) {
+              throw new Error('无效的文件对象');
+            }
+            return await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = e => resolve(e.target.result);
+              reader.onerror = e => reject(new Error('文件读取失败'));
+              reader.readAsText(file.raw);
+            });
+          } catch (error) {
+            console.error('文件读取错误:', error);
+            ElementPlus.ElMessage.error(`文件读取失败: ${error.message}`);
+            throw error;
+          }
+        };
+
+        // 生成报告
+        const generateReport = async () => {
+          generating.value = true;
+          result.value = '';
+          
+          try {
+            // 验证文件是否已上传
+            if (!isReady.value) {
+              throw new Error('请先上传所有必需文件');
+            }
+
+            // 读取文件内容
+            const [template, reference, interview, extra] = await Promise.all([
+              readFileContent(templateFiles.value[0]),
+              readFileContent(referenceFiles.value[0]),
+              readFileContent(interviewFiles.value[0]),
+              extraFiles.value.length > 0 ? readFileContent(extraFiles.value[0]) : Promise.resolve("无")
+            ]);
+
+            // 构建Prompt
+            const prompt = `你是一名资深社会学专家，请严格按照模版和以下要求生成一篇文章，必须要达到2000-3000字：
+            
+            必须遵守的模板结构和要求：
+            ${template}
+            里边应该已经包括了题目和一级标题和二级标题，请完全严格按照这个模版的格式和内容，已给部分不要做修改，可以根据你的理解添加三级标题但是已给出的部分不要做任何修改。
+            
+            参考资料：
+            ${reference}
+            参考资料部分来自于社会或政府文章，具体的填写内容可以参考里边给出的参考资料内容，可以根据参考资料的内容进行总结和分析。
+            
+            访谈记录：
+            ${interview}
+            根据要生成的案例所做的采访访谈内容，可以看到里边包括很多的"Q"和"A"，分别代表提问采访者的问题和采访者的回答，这个文件里的内容也作为生成内容的参考。
+            
+            其他材料：
+            ${extra}
+            可以用作参考。
+            
+            硬性要求：
+            1. 必须完全保持模板中的标题内容和层级和顺序。
+            2. 每个二级标题下建议不少于400字。
+            3. 可以包含3个对比表格和5个具体案例，只是建议。
+            4. 使用"首先/其次/最后"等逻辑连接词。
+            5. 数据需注明来源（如"据2023年统计"）。
+            6. 关键时间节点必须精确到年月或年月日（如"2024年1月1日"）。
+            7. 一定要满足生成2000-3000字的纯文本要求。`;
+
+            // 这里替换为您的API密钥
+            const API_KEY = "sk-fca98cdcc75b418fa4e8353ccd2cd9ad";
+            
+            // 模拟API响应（实际使用时替换为真实API调用）
+            const apiResponse = await mockApiCall(prompt);
+            result.value = await callRealAPI(prompt, API_KEY);
+            
+            ElementPlus.ElMessage.success('生成成功！');
+          } catch (error) {
+            console.error('生成错误:', error);
+            ElementPlus.ElMessage.error('生成失败: ' + error.message);
+          } finally {
+            generating.value = false;
+          }
+        };
+
+        // API调用函数
+        const callRealAPI = async (prompt, apiKey) => {
+          try {
+            const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`
+              },
+              body: JSON.stringify({
+                model: "qwen-plus",
+                messages: [
+                  {
+                    role: "system",
+                    content: "你是一名资深社会学专家，请严格按用户要求生成一篇2000-3000字的文章"
+                  },
+                  {
+                    role: "user",
+                    content: prompt
+                  }
+                ],
+                temperature: 0.3,  // 降低随机性
+                max_tokens: 3000   // 确保足够长度
+              })
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error?.message || 'API请求失败');
+            }
+
+            const data = await response.json();
+            console.log("完整API响应:", data); // 调试日志
+            
+            if (!data.choices?.[0]?.message?.content) {
+              throw new Error("API返回内容格式异常");
+            }
+            
+            return data.choices[0].message.content;
+          } catch (error) {
+            console.error("API调用失败:", error);
+            throw new Error(`API请求错误: ${error.message}`);
+          }
+        };
+
+
+        // 模拟API调用
+        const mockApiCall = (prompt) => {
+          return new Promise((resolve) => {
+            setTimeout(() => {
+              resolve(`### 党建引领推进物业一体化\n\n### 天山路街道联建居民区党总支\n\n### 一、引言：联建居民区的治理难题\n\n联建新村作为始建于上世纪五十年代的老旧混合型小区，长期面临多重治理困境...\n\n（此处为完整案例内容，实际使用时将由API生成2000-3000字报告）`);
+            }, 1500);
+          });
+        };
+
+        // DOCX下载功能
+        const downloadDocx = async () => {
+          if (!result.value || !templateFiles.value[0]) {
+            ElementPlus.ElMessage.warning('没有可下载的内容');
+            return;
+          }
+          
+          try {
+            const { Document, Paragraph, TextRun, HeadingLevel, Packer } = docx;
+            const templateName = getBaseFileName(templateFiles.value[0].name);
+            
+            const paragraphs = result.value.split('\n\n').filter(p => p.trim());
+            
+            const doc = new Document({
+              sections: [{
+                properties: {},
+                children: paragraphs.map(p => {
+                  if (p.startsWith('### ')) {
+                    return new Paragraph({
+                      text: p.replace('### ', ''),
+                      heading: HeadingLevel.HEADING_3,
+                      spacing: { before: 400, after: 200 }
+                    });
+                  } else if (p.startsWith('## ')) {
+                    return new Paragraph({
+                      text: p.replace('## ', ''),
+                      heading: HeadingLevel.HEADING_2,
+                      spacing: { before: 600, after: 300 }
+                    });
+                  } else if (p.startsWith('# ')) {
+                    return new Paragraph({
+                      text: p.replace('# ', ''),
+                      heading: HeadingLevel.HEADING_1,
+                      spacing: { before: 1000, after: 500 }
+                    });
+                  } else {
+                    return new Paragraph({
+                      children: [
+                        new TextRun({
+                          text: p,
+                          size: 24,
+                          font: "Microsoft YaHei"
+                        })
+                      ],
+                      spacing: { line: 360 }
+                    });
+                  }
+                })
+              }]
+            });
+
+            Packer.toBlob(doc).then(blob => {
+              saveAs(blob, `${templateName}.docx`);
+              ElementPlus.ElMessage.success('DOCX文件下载已开始');
+            });
+          } catch (error) {
+            console.error('DOCX生成错误:', error);
+            ElementPlus.ElMessage.error('文件生成失败: ' + error.message);
+          }
+        };
+
+        return {
+          templateFiles,
+          referenceFiles,
+          interviewFiles,
+          extraFiles,
+          generating,
+          result,
+          pageUrl,
+          handleFileChange,
+          generateReport,
+          downloadDocx,
+          isReady
+        };
+      }
+    }).use(ElementPlus).mount('#app');
+  </script>
+</body>
+</html>
