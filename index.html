@@ -9,6 +9,7 @@
   <script src="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.14/index.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <style>
     body {
       font-family: "Microsoft YaHei", sans-serif;
@@ -63,6 +64,13 @@
       display: block;
       margin: 15px auto 0;
       width: 200px;
+    }
+    .qr-code-canvas {
+      display: block;
+      margin: 10px auto;
+      border: 1px solid #ddd;
+      padding: 5px;
+      background: white;
     }
   </style>
 </head>
@@ -165,7 +173,7 @@
 
       <div class="qr-code" v-if="pageUrl && !pageUrl.startsWith('file://')">
         <h4>手机扫码使用</h4>
-        
+        <canvas id="qr-code-canvas" style="margin: 10px auto;"></canvas>
         <p style="margin-top: 10px; word-break: break-all;">分享链接：{{ pageUrl }}</p>
       </div>
       <div class="qr-code" v-if="pageUrl.startsWith('file://')">
@@ -191,10 +199,33 @@
         const result = ref('');
         const pageUrl = ref('');
 
-        // 自动获取当前页面URL
+        // 自动获取当前页面URL并生成二维码
         onMounted(() => {
           pageUrl.value = window.location.href;
+          if (pageUrl.value && !pageUrl.value.startsWith('file://')) {
+            generateQRCode();
+          }
         });
+
+        // 生成二维码函数
+        const generateQRCode = () => {
+          const canvas = document.getElementById('qr-code-canvas');
+          if (canvas) {
+            QRCode.toCanvas(canvas, pageUrl.value, {
+              width: 150,
+              margin: 2,
+              color: {
+                dark: '#000000',
+                light: '#ffffff'
+              }
+            }, (error) => {
+              if (error) {
+                console.error('二维码生成失败:', error);
+              }
+            });
+          }
+        };
+
 
         // 文件处理函数
         const handleFileChange = (file) => {
