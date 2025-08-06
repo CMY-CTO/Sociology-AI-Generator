@@ -65,9 +65,14 @@
       margin: 15px auto 0;
       width: 200px;
     }
-    .qr-code-canvas {
-      display: block;
+    #qr-code-container {
       margin: 10px auto;
+      width: 150px;
+      height: 150px;
+    }
+    #qr-code-canvas {
+      display: block;
+      margin: 0 auto;
       border: 1px solid #ddd;
       padding: 5px;
       background: white;
@@ -171,9 +176,11 @@
         </el-button>
       </div>
 
-      <div class="qr-code" v-if="pageUrl && !pageUrl.startsWith('file://')">
+      <div class="qr-code" v-if="showQRCode">
         <h4>手机扫码使用</h4>
-        <canvas id="qr-code-canvas" style="margin: 10px auto;"></canvas>
+        <div id="qr-code-container">
+          <canvas id="qr-code-canvas"></canvas>
+        </div>
         <p style="margin-top: 10px; word-break: break-all;">分享链接：{{ pageUrl }}</p>
       </div>
       <div class="qr-code" v-if="pageUrl.startsWith('file://')">
@@ -203,15 +210,24 @@
         onMounted(() => {
           pageUrl.value = window.location.href;
           if (pageUrl.value && !pageUrl.value.startsWith('file://')) {
+            showQRCode.value = true;
             generateQRCode();
           }
         });
 
-        // 生成二维码函数
+        // 生成二维码函数 - 修改后的版本
         const generateQRCode = () => {
-          const canvas = document.getElementById('qr-code-canvas');
-          if (canvas) {
-            QRCode.toCanvas(canvas, pageUrl.value, {
+          try {
+            const canvas = document.getElementById('qr-code-canvas');
+            if (!canvas) {
+              console.error('找不到二维码canvas元素');
+              return;
+            }
+            
+            // 确保URL有效
+            const urlToEncode = pageUrl.value || 'https://cmy-cto.github.io/Sociology-AI-Generator/';
+            
+            QRCode.toCanvas(canvas, urlToEncode, {
               width: 150,
               margin: 2,
               color: {
@@ -221,8 +237,16 @@
             }, (error) => {
               if (error) {
                 console.error('二维码生成失败:', error);
+                // 如果生成失败，显示备用图片或提示
+                canvas.style.display = 'none';
+                const container = document.getElementById('qr-code-container');
+                if (container) {
+                  container.innerHTML = '<p style="color:red">二维码生成失败，请刷新页面重试</p>';
+                }
               }
             });
+          } catch (error) {
+            console.error('二维码生成异常:', error);
           }
         };
 
